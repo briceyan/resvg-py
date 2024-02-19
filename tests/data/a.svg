@@ -9,9 +9,14 @@
   </defs>
   <g fill="none" fill-rule="evenodd">
     <use fill="url(#b)" xlink:href="#a" />
-    <text x="50%" y="39%" font-size="58" fill="#FFF" dominant-baseline="middle" text-anchor="middle">Hello
+    <text x="50%" y="20%" font-size="48" fill="#FFF" dominant-baseline="middle" text-anchor="middle">
       resvg-py</text>
-    <text x="50%" y="62%" font-size="38" fill="#FFF" dominant-baseline="middle" text-anchor="middle">高性能
-      SVG 渲染引擎和工具包</text>
+    <text x="50%" y="40%" font-size="24" fill="#FFF" dominant-baseline="middle" text-anchor="middle">
+      a Python binding of resvg</text>
+    <text x="50%" y="60%" font-size="48" fill="#FFF" dominant-baseline="middle" text-anchor="middle">
+      resvg</text>
+    <text x="50%" y="80%" font-size="24" fill="#FFF" dominant-baseline="middle" text-anchor="middle">
+      an SVG rendering library in Rust
+    </text>
   </g>
 </svg>

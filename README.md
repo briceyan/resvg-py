@@ -1,12 +1,12 @@
 # resvg-py
 
-![title](images/a.png)
+![title](https://github.com/briceyan/resvg-py/blob/main/images/a.png?raw=true)
 
 Resvg-py is a Python package that provides high-performance SVG rendering by wrapping the `resvg` Rust library using PyO3. This package allows Python applications to easily render SVG files to various image formats with high fidelity and performance.
 
 See https://github.com/RazrFalcon/resvg for more info about resvg.
 
-This project is inspired by https://github.com/yisibl/resvg-js. The image credits mentioned above also go to the same source.
+This project is inspired by https://github.com/yisibl/resvg-js. The image displayed above has been modified from a test image(SVG) included in this project and was converted using this package.
 
 ## Installation
 
@@ -53,10 +53,15 @@ File content of `a.svg`
   </defs>
   <g fill="none" fill-rule="evenodd">
     <use fill="url(#b)" xlink:href="#a" />
-    <text x="50%" y="39%" font-size="58" fill="#FFF" dominant-baseline="middle" text-anchor="middle">Hello
+    <text x="50%" y="20%" font-size="48" fill="#FFF" dominant-baseline="middle" text-anchor="middle">
       resvg-py</text>
-    <text x="50%" y="62%" font-size="38" fill="#FFF" dominant-baseline="middle" text-anchor="middle">高性能
-      SVG 渲染引擎和工具包</text>
+    <text x="50%" y="40%" font-size="24" fill="#FFF" dominant-baseline="middle" text-anchor="middle">
+      a Python binding of resvg</text>
+    <text x="50%" y="60%" font-size="48" fill="#FFF" dominant-baseline="middle" text-anchor="middle">
+      resvg</text>
+    <text x="50%" y="80%" font-size="24" fill="#FFF" dominant-baseline="middle" text-anchor="middle">
+      an SVG rendering library in Rust
+    </text>
   </g>
 </svg>
 ```
