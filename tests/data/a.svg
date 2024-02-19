@@ -1,0 +1,17 @@
+<svg width="600" height="300" xmlns="http://www.w3.org/2000/svg"
+  xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <linearGradient x1="0%" y1="45%" x2="100%" y2="55%" id="b">
+      <stop stop-color="#FF8253" offset="0%" />
+      <stop stop-color="#DA1BC6" offset="100%" />
+    </linearGradient>
+    <path id="a" d="M0 0h600v300H0z" />
+  </defs>
+  <g fill="none" fill-rule="evenodd">
+    <use fill="url(#b)" xlink:href="#a" />
+    <text x="50%" y="39%" font-size="58" fill="#FFF" dominant-baseline="middle" text-anchor="middle">Hello
+      resvg-py</text>
+    <text x="50%" y="62%" font-size="38" fill="#FFF" dominant-baseline="middle" text-anchor="middle">高性能
+      SVG 渲染引擎和工具包</text>
+  </g>
+</svg>
