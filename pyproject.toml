@@ -4,6 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "resvg"
+description = 'A Python binding of resvg, the high-performance SVG rendering library in Rust'
+readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
