@@ -20,7 +20,7 @@ Here's a simple example of how to use resvg-py to convert an SVG file to a PNG i
 
 ```python
 from resvg import render, usvg
-import affine
+from affine import Affine
 
 with open("a.svg", "r") as f:
     svg = f.read()
