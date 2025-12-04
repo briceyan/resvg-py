@@ -4,17 +4,34 @@ build-backend = "maturin"
 
 [project]
 name = "resvg"
-description = 'A Python binding of resvg, the high-performance SVG rendering library in Rust'
+description = "A Python binding of resvg, the high-performance SVG rendering library in Rust"
 readme = "README.md"
 requires-python = ">=3.8"
 classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Utilities",
+    "Typing :: Typed",
 ]
 license = "MIT"
 keywords = []
-authors = [{ name = "Brice Yan", email = "briceyan3.0@gmail.com" }]
+authors = [
+    { name = "Brice Yan", email = "briceyan3.0@gmail.com" },
+]
 dynamic = ["version"]
 
 [tool.maturin]
