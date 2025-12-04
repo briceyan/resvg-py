@@ -35,6 +35,7 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
+dependencies = []
 dynamic = ["version"]
 
 [[project.authors]]
