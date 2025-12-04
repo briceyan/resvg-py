@@ -136,13 +136,13 @@ impl Tree {
 
 #[pyfunction]
 #[pyo3(signature = (tree, transform, bg_file=None, bg_data=None, bg_size=None, bg_color=None))]
-fn render(
+fn render<'py>(
     tree: &Tree,
-    transform: &PyTuple,
+    transform: &Bound<'py, PyTuple>,
     bg_file: Option<String>,
     bg_data: Option<Vec<u8>>,
-    bg_size: Option<&PyTuple>,
-    bg_color: Option<&PyTuple>,
+    bg_size: Option<&Bound<'py, PyTuple>>,
+    bg_color: Option<&Bound<'py, PyTuple>>,
 ) -> PyResult<Vec<u8>> {
     let mut pixmap: Pixmap;
     if let Some(bg_file) = bg_file {
@@ -187,16 +187,24 @@ fn render(
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
-#[pymodule]
-#[pyo3(name = "resvg")]
-fn resvg_module(py: Python, m: &PyModule) -> PyResult<()> {
+#[pymodule(name = "resvg")]
+mod resvg_module {
+    #[pymodule_export]
+    use super::usvg_module;
+
+    #[pymodule_export]
+    use super::render;
+}
+
+#[pymodule(name = "usvg")]
+mod usvg_module {
     // usvg submodule
-    let usvg_module = PyModule::new(py, "usvg")?;
-    usvg_module.add_class::<Tree>()?;
-    usvg_module.add_class::<Options>()?;
-    usvg_module.add_class::<FontDatabase>()?;
-    // resvg module
-    m.add_submodule(usvg_module)?;
-    m.add_function(wrap_pyfunction!(render, m)?)?;
-    Ok(())
+    #[pymodule_export]
+    use super::Tree;
+
+    #[pymodule_export]
+    use super::Options;
+
+    #[pymodule_export]
+    use super::FontDatabase;
 }
