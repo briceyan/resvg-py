@@ -2,11 +2,19 @@
 requires = ["maturin>=1.4,<2.0"]
 build-backend = "maturin"
 
+# project metadata
 [project]
 name = "resvg"
 description = "A Python binding of resvg, the high-performance SVG rendering library in Rust"
 readme = "README.md"
+urls.Code = "https://github.com/briceyan/resvg-py"
+urls.Download = "https://pypi.org/project/resvg/"
+urls.Homepage = "https://github.com/briceyan/resvg-py"
+urls."Issue tracker" = "https://github.com/briceyan/resvg-py/issues"
+license = "MIT"
 requires-python = ">=3.8"
+
+# Classifiers list: https://pypi.org/classifiers/
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Operating System :: OS Independent",
@@ -27,12 +35,11 @@ classifiers = [
     "Topic :: Utilities",
     "Typing :: Typed",
 ]
-license = "MIT"
-keywords = []
-authors = [
-    { name = "Brice Yan", email = "briceyan3.0@gmail.com" },
-]
 dynamic = ["version"]
+
+[[project.authors]]
+name = "Brice Yan"
+email = "briceyan3.0@gmail.com"
 
 [tool.maturin]
 features = ["pyo3/extension-module"]
