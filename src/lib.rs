@@ -1,6 +1,6 @@
 use pyo3::{exceptions::*, prelude::*, types::*};
 use std::{
-    path::{Path, PathBuf},
+    path::PathBuf,
     str::FromStr,
 };
 use tiny_skia::{Color, Pixmap, Transform};
@@ -8,7 +8,7 @@ use usvg;
 
 #[pyclass(unsendable)]
 struct Options {
-    inner: usvg::Options,
+    inner: usvg::Options<'static>,
 }
 
 #[pymethods]
@@ -81,41 +81,6 @@ impl Options {
 }
 
 #[pyclass(unsendable)]
-struct FontDatabase {
-    inner: usvg::fontdb::Database,
-}
-
-#[pymethods]
-impl FontDatabase {
-    #[staticmethod]
-    fn default() -> PyResult<Self> {
-        let db = usvg::fontdb::Database::default();
-        Ok(FontDatabase { inner: db })
-    }
-
-    fn load_font_file(&mut self, file: &str) -> PyResult<()> {
-        self.inner
-            .load_font_file(Path::new(file))
-            .map_err(|e| PyIOError::new_err(e.to_string()))
-    }
-
-    fn load_fonts_dir(&mut self, dir: &str) -> PyResult<()> {
-        self.inner.load_fonts_dir(Path::new(dir));
-        Ok(())
-    }
-
-    fn load_font_data(&mut self, data: Vec<u8>) -> PyResult<()> {
-        self.inner.load_font_data(data);
-        Ok(())
-    }
-
-    fn load_system_fonts(&mut self) -> PyResult<()> {
-        self.inner.load_system_fonts();
-        Ok(())
-    }
-}
-
-#[pyclass(unsendable)]
 struct Tree {
     inner: usvg::Tree,
 }
@@ -123,8 +88,8 @@ struct Tree {
 #[pymethods]
 impl Tree {
     #[staticmethod]
-    fn from_str(svg: &str, opts: &Options, fontdb: &FontDatabase) -> PyResult<Self> {
-        let tree = usvg::Tree::from_str(svg, &opts.inner, &fontdb.inner).unwrap();
+    fn from_str(svg: &str, opts: &Options) -> PyResult<Self> {
+        let tree = usvg::Tree::from_str(svg, &opts.inner).unwrap();
         Ok(Tree { inner: tree })
     }
 
@@ -204,7 +169,4 @@ mod usvg_module {
 
     #[pymodule_export]
     use super::Options;
-
-    #[pymodule_export]
-    use super::FontDatabase;
 }
