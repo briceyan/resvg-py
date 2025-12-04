@@ -42,10 +42,15 @@ dynamic = ["version"]
 name = "Brice Yan"
 email = "briceyan3.0@gmail.com"
 
+[project.scripts]
+resvg = "resvg.__main__:entrypoint"
+
 [dependency-groups]
 test = [
     "pytest>=9.0",
 ]
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+module-name = "resvg._resvg"
+python-source = "python"
+strip = true

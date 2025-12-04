@@ -6,6 +6,8 @@ use std::{
 use tiny_skia::{Color, Pixmap, Transform};
 use usvg;
 
+mod vendored;
+
 #[pyclass(unsendable)]
 struct Options {
     inner: usvg::Options<'static>,
@@ -152,13 +154,24 @@ fn render<'py>(
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
-#[pymodule(name = "resvg")]
+#[pymodule(name = "_resvg")]
 mod resvg_module {
     #[pymodule_export]
     use super::usvg_module;
 
     #[pymodule_export]
     use super::render;
+
+    #[pyo3::pyfunction]
+    fn _script_entrypoint(env_args: Vec<std::ffi::OsString>) -> u8 {
+        match crate::vendored::resvg_main::process(env_args) {
+            Ok(()) => 0,
+            Err(e) => {
+                eprintln!("Error: {e}.");
+                1
+            }
+        }
+    }
 }
 
 #[pymodule(name = "usvg")]

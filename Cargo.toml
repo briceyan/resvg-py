@@ -14,3 +14,8 @@ pyo3 = "0.27.2"
 resvg = "0.45.1"
 tiny-skia = "0.11.4"
 usvg = "0.45.1"
+
+# CLI
+log = "0.4"
+pico-args = { version = "0.5", features = ["eq-separator"] }
+svgtypes = "0.15.3"
