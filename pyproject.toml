@@ -42,5 +42,10 @@ dynamic = ["version"]
 name = "Brice Yan"
 email = "briceyan3.0@gmail.com"
 
+[dependency-groups]
+test = [
+    "pytest>=9.0",
+]
+
 [tool.maturin]
 features = ["pyo3/extension-module"]
