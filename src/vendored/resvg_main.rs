@@ -1,8 +1,6 @@
 // Copyright 2020 the Resvg Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-#![allow(clippy::uninlined_format_args)]
-
 use std::ffi::OsString;
 use std::path;
 use std::sync::Arc;
@@ -16,8 +14,9 @@ where
     let now = std::time::Instant::now();
     let result = f();
     if perf {
+        
         let elapsed = now.elapsed().as_micros() as f64 / 1000.0;
-        println!("{}: {:.2}ms", name, elapsed);
+        println!("{name}: {elapsed:.2}ms");
     }
 
     result
@@ -27,7 +26,7 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
     let mut args = match parse_args(env_args) {
         Ok(args) => args,
         Err(e) => {
-            println!("{}", HELP);
+            println!("{HELP}");
             return Err(e);
         }
     };
@@ -60,7 +59,7 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
         svg_data = timed(args.perf, "SVGZ Decoding", || {
             usvg::decompress_svgz(&svg_data).map_err(|e| e.to_string())
         })?;
-    };
+    }
 
     let svg_string = std::str::from_utf8(&svg_data)
         .map_err(|_| "provided data has not an UTF-8 encoding".to_string())?;
@@ -81,7 +80,7 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
 
     if has_text_nodes {
         timed(args.perf, "FontDB", || {
-            load_fonts(&args.raw_args, args.usvg.fontdb_mut())
+            load_fonts(&args.raw_args, args.usvg.fontdb_mut());
         });
     }
 
@@ -107,7 +106,7 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
                 img.save_png(file).map_err(|e| e.to_string())
             })?;
         }
-    };
+    }
 
     Ok(())
 }
@@ -255,7 +254,7 @@ fn collect_args(env_args: Vec<OsString>) -> Result<CliArgs, pico_args::Error> {
     let mut input = pico_args::Arguments::from_vec(env_args);
 
     if input.contains("--help") {
-        print!("{}", HELP);
+        print!("{HELP}");
         std::process::exit(0);
     }
 
@@ -420,10 +419,10 @@ impl FitTo {
 }
 
 fn list_fonts(args: &CliArgs) {
+    use fontdb::Family;
+    
     let mut fontdb = fontdb::Database::new();
     load_fonts(args, &mut fontdb);
-
-    use fontdb::Family;
     println!("serif: {}", fontdb.family_name(&Family::Serif));
     println!("sans-serif: {}", fontdb.family_name(&Family::SansSerif));
     println!("cursive: {}", fontdb.family_name(&Family::Cursive));
@@ -475,9 +474,8 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
     }
 
     let (in_svg, out_png) = {
-        let in_svg = match args.input {
-            Some(ref v) => v,
-            None => return Err("input file is missing".to_string()),
+        let Some(ref in_svg) = args.input else {
+            return Err("input file is missing".to_string());
         };
 
         let svg_from = if in_svg == "-" {
@@ -517,7 +515,7 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
         eprintln!("Warning: --export-area-drawing has no effect when --export-id is set.");
     }
 
-    let export_id = args.export_id.as_ref().map(|v| v.to_string());
+    let export_id = args.export_id.clone();
 
     let mut fit_to = FitTo::Original;
     let mut default_size = usvg::Size::from_wh(100.0, 100.0).unwrap();
@@ -541,7 +539,7 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
                 // Get input file absolute directory.
                 std::fs::canonicalize(input)
                     .ok()
-                    .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                    .and_then(|p| p.parent().map(std::path::Path::to_path_buf))
             } else {
                 None
             }
@@ -552,7 +550,7 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
         Some(p) => Some(
             std::fs::read(p)
                 .ok()
-                .and_then(|s| std::str::from_utf8(&s).ok().map(|s| s.to_string()))
+                .and_then(|s| std::str::from_utf8(&s).ok().map(str::to_owned))
                 .ok_or("failed to read stylesheet".to_string())?,
         ),
         None => None,
@@ -626,6 +624,10 @@ fn query_all(tree: &usvg::Tree) -> Result<(), String> {
 }
 
 fn query_all_impl(parent: &usvg::Group) -> usize {
+    fn round_len(v: f32) -> f32 {
+        (v * 1000.0).round() / 1000.0
+    }
+
     let mut count = 0;
     for node in parent.children() {
         if node.id().is_empty() {
@@ -637,14 +639,9 @@ fn query_all_impl(parent: &usvg::Group) -> usize {
 
         count += 1;
 
-        fn round_len(v: f32) -> f32 {
-            (v * 1000.0).round() / 1000.0
-        }
-
         let bbox = node
             .abs_layer_bounding_box()
-            .map(|r| r.to_rect())
-            .unwrap_or(node.abs_bounding_box());
+            .map_or(node.abs_bounding_box(), |r| r.to_rect());
 
         println!(
             "{},{},{},{},{}",
@@ -667,9 +664,8 @@ fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, Strin
     let now = std::time::Instant::now();
 
     let img = if let Some(ref id) = args.export_id {
-        let node = match tree.node_by_id(id) {
-            Some(node) => node,
-            None => return Err(format!("SVG doesn't have '{}' ID", id)),
+        let Some(node) = tree.node_by_id(id) else {
+            return Err(format!("SVG doesn't have '{id}' ID"));
         };
 
         let bbox = node
@@ -746,8 +742,9 @@ fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, Strin
     };
 
     if args.perf {
+        
         let elapsed = now.elapsed().as_micros() as f64 / 1000.0;
-        println!("Rendering: {:.2}ms", elapsed);
+        println!("Rendering: {elapsed:.2}ms");
     }
 
     Ok(img)
@@ -813,21 +810,21 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            let target = if !record.target().is_empty() {
-                record.target()
-            } else {
+            let target = if record.target().is_empty() {
                 record.module_path().unwrap_or_default()
+            } else {
+                record.target()
             };
 
             let line = record.line().unwrap_or(0);
             let args = record.args();
 
             match record.level() {
-                log::Level::Error => eprintln!("Error (in {}:{}): {}", target, line, args),
-                log::Level::Warn => eprintln!("Warning (in {}:{}): {}", target, line, args),
-                log::Level::Info => eprintln!("Info (in {}:{}): {}", target, line, args),
-                log::Level::Debug => eprintln!("Debug (in {}:{}): {}", target, line, args),
-                log::Level::Trace => eprintln!("Trace (in {}:{}): {}", target, line, args),
+                log::Level::Error => eprintln!("Error (in {target}:{line}): {args}"),
+                log::Level::Warn => eprintln!("Warning (in {target}:{line}): {args}"),
+                log::Level::Info => eprintln!("Info (in {target}:{line}): {args}"),
+                log::Level::Debug => eprintln!("Debug (in {target}:{line}): {args}"),
+                log::Level::Trace => eprintln!("Trace (in {target}:{line}): {args}"),
             }
         }
     }
