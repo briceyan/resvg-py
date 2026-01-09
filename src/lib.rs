@@ -1,10 +1,11 @@
-use pyo3::{exceptions::*, prelude::*, types::*};
+#[allow(unused_imports)]
+use pyo3::pymodule;
+use pyo3::{exceptions::{PyIOError, PyRuntimeError, PyValueError}, prelude::{Bound, PyResult, pyclass, pyfunction, pymethods}, types::{PyAnyMethods, PyTuple}};
 use std::{
     path::PathBuf,
     str::FromStr,
 };
 use tiny_skia::{Color, Pixmap, Transform};
-use usvg;
 
 mod vendored;
 
@@ -16,18 +17,14 @@ struct Options {
 #[pymethods]
 impl Options {
     #[staticmethod]
-    fn default() -> PyResult<Self> {
+    fn default() -> Self {
         let options = usvg::Options::default();
-        Ok(Options { inner: options })
+        Options { inner: options }
     }
 
     #[getter]
-    fn get_resources_dir(&self) -> PyResult<Option<&str>> {
-        if let Some(rd) = &self.inner.resources_dir {
-            Ok(rd.to_str())
-        } else {
-            Ok(None)
-        }
+    fn get_resources_dir(&self) -> Option<&str> {
+        self.inner.resources_dir.as_ref().and_then(|rd| rd.to_str())
     }
 
     #[setter]
@@ -38,36 +35,76 @@ impl Options {
     }
 
     #[getter]
-    fn get_dpi(&self) -> PyResult<f32> {
-        Ok(self.inner.dpi)
+    fn get_dpi(&self) -> f32 {
+        self.inner.dpi
     }
 
     #[setter]
     fn set_dpi(&mut self, value: f32) -> PyResult<()> {
+        if !(10.0..=4000.0).contains(&value) {
+            return Err(PyValueError::new_err("DPI must be between 10 and 4000"));
+        }
         self.inner.dpi = value;
         Ok(())
     }
 
     #[getter]
-    fn get_font_family(&self) -> PyResult<&str> {
-        Ok(&self.inner.font_family)
+    fn get_font_family(&self) -> &str {
+        self.inner.font_family.as_str()
     }
 
     #[setter]
-    fn set_font_family(&mut self, value: &str) -> PyResult<()> {
+    fn set_font_family(&mut self, value: &str) {
         self.inner.font_family = value.to_string();
-        Ok(())
     }
 
     #[getter]
-    fn get_font_size(&self) -> PyResult<f32> {
-        Ok(self.inner.font_size)
+    fn get_font_size(&self) -> f32 {
+        self.inner.font_size
     }
 
     #[setter]
     fn set_font_size(&mut self, value: f32) -> PyResult<()> {
+        if !(1.0..=192.0).contains(&value) {
+            return Err(PyValueError::new_err("Font size must be between 1 and 192"));
+        }
         self.inner.font_size = value;
         Ok(())
+    }
+
+    fn load_system_fonts(&mut self) {
+        self.inner.fontdb_mut().load_system_fonts();
+    }
+
+    fn load_font_file(&mut self, path: &str) -> PyResult<()> {
+        self.inner
+            .fontdb_mut()
+            .load_font_file(path)
+            .map_err(|e| PyIOError::new_err(e.to_string()))
+    }
+
+    fn load_fonts_dir(&mut self, path: &str) {
+        self.inner.fontdb_mut().load_fonts_dir(path);
+    }
+
+    fn set_serif_family(&mut self, family: &str) {
+        self.inner.fontdb_mut().set_serif_family(family);
+    }
+
+    fn set_sans_serif_family(&mut self, family: &str) {
+        self.inner.fontdb_mut().set_sans_serif_family(family);
+    }
+
+    fn set_cursive_family(&mut self, family: &str) {
+        self.inner.fontdb_mut().set_cursive_family(family);
+    }
+
+    fn set_fantasy_family(&mut self, family: &str) {
+        self.inner.fontdb_mut().set_fantasy_family(family);
+    }
+
+    fn set_monospace_family(&mut self, family: &str) {
+        self.inner.fontdb_mut().set_monospace_family(family);
     }
 
     // pub resources_dir: Option<PathBuf>,
@@ -91,13 +128,14 @@ struct Tree {
 impl Tree {
     #[staticmethod]
     fn from_str(svg: &str, opts: &Options) -> PyResult<Self> {
-        let tree = usvg::Tree::from_str(svg, &opts.inner).unwrap();
+        let tree = usvg::Tree::from_str(svg, &opts.inner)
+            .map_err(|e| PyValueError::new_err(format!("Invalid SVG: {e}")))?;
         Ok(Tree { inner: tree })
     }
 
-    fn int_size(&self) -> PyResult<(u32, u32)> {
+    fn int_size(&self) -> (u32, u32) {
         let sz = self.inner.size().to_int_size();
-        Ok((sz.width(), sz.height()))
+        (sz.width(), sz.height())
     }
 }
 
@@ -128,26 +166,26 @@ fn render<'py>(
         pixmap =
             Pixmap::decode_png(&bg_data).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
     } else {
-        let (w, h);
+        let (width, height);
         if let Some(bg_size) = bg_size {
             let sz: (u32, u32) = bg_size.extract()?;
-            w = sz.0;
-            h = sz.1;
+            width = sz.0;
+            height = sz.1;
         } else {
             let sz = tree.inner.size().to_int_size();
-            w = sz.width();
-            h = sz.height();
+            width = sz.width();
+            height = sz.height();
         }
         pixmap =
-            Pixmap::new(w, h).ok_or_else(|| PyRuntimeError::new_err("failed to create pixmap"))?;
+            Pixmap::new(width, height).ok_or_else(|| PyRuntimeError::new_err("failed to create pixmap"))?;
         if let Some(bg_color) = bg_color {
             let (r, g, b, a): (u8, u8, u8, u8) = bg_color.extract()?;
             pixmap.fill(Color::from_rgba8(r, g, b, a));
         }
     }
 
-    let (a, b, c, d, e, f) = transform.extract()?;
-    let tr = Transform::from_row(a, d, b, e, c, f);
+    let (scale_x, skew_x, translate_x, skew_y, scale_y, translate_y) = transform.extract()?;
+    let tr = Transform::from_row(scale_x, skew_y, skew_x, scale_y, translate_x, translate_y);
     resvg::render(&tree.inner, tr, &mut pixmap.as_mut());
     pixmap
         .encode_png()
