@@ -1,10 +1,11 @@
 #[allow(unused_imports)]
 use pyo3::pymodule;
-use pyo3::{exceptions::{PyIOError, PyRuntimeError, PyValueError}, prelude::{Bound, PyResult, pyclass, pyfunction, pymethods}, types::{PyAnyMethods, PyTuple}};
-use std::{
-    path::PathBuf,
-    str::FromStr,
+use pyo3::{
+    exceptions::{PyIOError, PyRuntimeError, PyValueError},
+    prelude::{Bound, PyResult, pyclass, pyfunction, pymethods},
+    types::{PyAnyMethods, PyTuple},
 };
+use std::{path::PathBuf, str::FromStr};
 use tiny_skia::{Color, Pixmap, Transform};
 
 mod vendored;
@@ -176,8 +177,8 @@ fn render<'py>(
             width = sz.width();
             height = sz.height();
         }
-        pixmap =
-            Pixmap::new(width, height).ok_or_else(|| PyRuntimeError::new_err("failed to create pixmap"))?;
+        pixmap = Pixmap::new(width, height)
+            .ok_or_else(|| PyRuntimeError::new_err("failed to create pixmap"))?;
         if let Some(bg_color) = bg_color {
             let (r, g, b, a): (u8, u8, u8, u8) = bg_color.extract()?;
             pixmap.fill(Color::from_rgba8(r, g, b, a));

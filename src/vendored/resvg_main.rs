@@ -14,7 +14,6 @@ where
     let now = std::time::Instant::now();
     let result = f();
     if perf {
-        
         let elapsed = now.elapsed().as_micros() as f64 / 1000.0;
         println!("{name}: {elapsed:.2}ms");
     }
@@ -420,7 +419,7 @@ impl FitTo {
 
 fn list_fonts(args: &CliArgs) {
     use fontdb::Family;
-    
+
     let mut fontdb = fontdb::Database::new();
     load_fonts(args, &mut fontdb);
     println!("serif: {}", fontdb.family_name(&Family::Serif));
@@ -742,7 +741,6 @@ fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, Strin
     };
 
     if args.perf {
-        
         let elapsed = now.elapsed().as_micros() as f64 / 1000.0;
         println!("Rendering: {elapsed:.2}ms");
     }
