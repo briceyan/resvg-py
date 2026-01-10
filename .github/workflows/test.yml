@@ -17,5 +17,5 @@ jobs:
       - name: Build and test
         run: |
           uv sync --group test
-          uv run maturin develop
+          uvx maturin develop
           uv run pytest python/tests/
