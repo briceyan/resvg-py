@@ -1,23 +1,34 @@
 // Copyright 2020 the Resvg Authors
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 
-#![allow(clippy::uninlined_format_args)]
+use std::{
+    ffi::OsString,
+    fs, io,
+    path::{Path, PathBuf},
+    process as processIO, str,
+    sync::Arc,
+    time::Instant,
+};
 
-use std::ffi::OsString;
-use std::path;
-use std::sync::Arc;
-
-use usvg::fontdb;
+use fontdb::{Database, Family, Source};
+use pico_args::{Arguments, Error as PicoError};
+use svgtypes::Color as SvgTypeColor;
+use tiny_skia::{Color, IntRect, IntSize, Pixmap, PixmapPaint, Transform};
+use usvg::{
+    FontResolver, Group, ImageHrefResolver, ImageRendering, Node, Options as UsvgOptions,
+    ShapeRendering, Size, TextRendering, Tree, fontdb,
+    roxmltree::{Document, ParsingOptions},
+};
 
 fn timed<F, T>(perf: bool, name: &str, mut f: F) -> T
 where
     F: FnMut() -> T,
 {
-    let now = std::time::Instant::now();
+    let now = Instant::now();
     let result = f();
     if perf {
         let elapsed = now.elapsed().as_micros() as f64 / 1000.0;
-        println!("{}: {:.2}ms", name, elapsed);
+        println!("{name}: {elapsed:.2}ms");
     }
 
     result
@@ -27,7 +38,7 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
     let mut args = match parse_args(env_args) {
         Ok(args) => args,
         Err(e) => {
-            println!("{}", HELP);
+            println!("{HELP}");
             return Err(e);
         }
     };
@@ -43,11 +54,11 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
 
     let mut svg_data = timed(args.perf, "Reading", || -> Result<Vec<u8>, &str> {
         if let InputFrom::File(ref file) = args.in_svg {
-            std::fs::read(file).map_err(|_| "failed to open the provided file")
+            fs::read(file).map_err(|_| "failed to open the provided file")
         } else {
-            use std::io::Read;
+            use io::Read;
             let mut buf = Vec::new();
-            let stdin = std::io::stdin();
+            let stdin = io::stdin();
             let mut handle = stdin.lock();
             handle
                 .read_to_end(&mut buf)
@@ -60,18 +71,17 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
         svg_data = timed(args.perf, "SVGZ Decoding", || {
             usvg::decompress_svgz(&svg_data).map_err(|e| e.to_string())
         })?;
-    };
+    }
 
-    let svg_string = std::str::from_utf8(&svg_data)
+    let svg_string = str::from_utf8(&svg_data)
         .map_err(|_| "provided data has not an UTF-8 encoding".to_string())?;
 
     let xml_tree = timed(args.perf, "XML Parsing", || {
-        let xml_opt = usvg::roxmltree::ParsingOptions {
+        let xml_opt = ParsingOptions {
             allow_dtd: true,
             ..Default::default()
         };
-        usvg::roxmltree::Document::parse_with_options(svg_string, xml_opt)
-            .map_err(|e| e.to_string())
+        Document::parse_with_options(svg_string, xml_opt).map_err(|e| e.to_string())
     })?;
 
     // fontdb initialization is pretty expensive, so perform it only when needed.
@@ -81,12 +91,12 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
 
     if has_text_nodes {
         timed(args.perf, "FontDB", || {
-            load_fonts(&args.raw_args, args.usvg.fontdb_mut())
+            load_fonts(&args.raw_args, args.usvg.fontdb_mut());
         });
     }
 
     let tree = timed(args.perf, "SVG Parsing", || {
-        usvg::Tree::from_xmltree(&xml_tree, &args.usvg).map_err(|e| e.to_string())
+        Tree::from_xmltree(&xml_tree, &args.usvg).map_err(|e| e.to_string())
     })?;
 
     if args.query_all {
@@ -98,16 +108,16 @@ pub(crate) fn process(env_args: Vec<OsString>) -> Result<(), String> {
 
     match args.out_png.unwrap() {
         OutputTo::Stdout => {
-            use std::io::Write;
+            use io::Write;
             let buf = img.encode_png().map_err(|e| e.to_string())?;
-            std::io::stdout().write_all(&buf).unwrap();
+            io::stdout().write_all(&buf).unwrap();
         }
         OutputTo::File(ref file) => {
             timed(args.perf, "Saving", || {
                 img.save_png(file).map_err(|e| e.to_string())
             })?;
         }
-    };
+    }
 
     Ok(())
 }
@@ -214,13 +224,13 @@ struct CliArgs {
     height: Option<u32>,
     zoom: Option<f32>,
     dpi: u32,
-    background: Option<svgtypes::Color>,
+    background: Option<SvgTypeColor>,
 
     languages: Vec<String>,
-    shape_rendering: usvg::ShapeRendering,
-    text_rendering: usvg::TextRendering,
-    image_rendering: usvg::ImageRendering,
-    resources_dir: Option<path::PathBuf>,
+    shape_rendering: ShapeRendering,
+    text_rendering: TextRendering,
+    image_rendering: ImageRendering,
+    resources_dir: Option<PathBuf>,
 
     font_family: Option<String>,
     font_size: u32,
@@ -229,11 +239,11 @@ struct CliArgs {
     cursive_family: Option<String>,
     fantasy_family: Option<String>,
     monospace_family: Option<String>,
-    font_files: Vec<path::PathBuf>,
-    font_dirs: Vec<path::PathBuf>,
+    font_files: Vec<PathBuf>,
+    font_dirs: Vec<PathBuf>,
     skip_system_fonts: bool,
     list_fonts: bool,
-    style_sheet: Option<path::PathBuf>,
+    style_sheet: Option<PathBuf>,
 
     query_all: bool,
     export_id: Option<String>,
@@ -248,20 +258,20 @@ struct CliArgs {
     output: Option<String>,
 }
 
-fn collect_args(env_args: Vec<OsString>) -> Result<CliArgs, pico_args::Error> {
+fn collect_args(env_args: Vec<OsString>) -> Result<CliArgs, PicoError> {
     // let mut env_args: Vec<_> = std::env::args_os().collect();
     // env_args.remove(0);  // python
     // env_args.remove(0);  // programme name
-    let mut input = pico_args::Arguments::from_vec(env_args);
+    let mut input = Arguments::from_vec(env_args);
 
     if input.contains("--help") {
-        print!("{}", HELP);
-        std::process::exit(0);
+        print!("{HELP}");
+        processIO::exit(0);
     }
 
     if input.contains(["-V", "--version"]) {
         println!("{}", env!("CARGO_PKG_VERSION"));
-        std::process::exit(0);
+        processIO::exit(0);
     }
 
     Ok(CliArgs {
@@ -372,13 +382,13 @@ fn parse_languages(s: &str) -> Result<Vec<String>, String> {
 #[derive(Clone, PartialEq, Debug)]
 enum InputFrom {
     Stdin,
-    File(path::PathBuf),
+    File(PathBuf),
 }
 
 #[derive(Clone, PartialEq, Debug)]
 enum OutputTo {
     Stdout,
-    File(path::PathBuf),
+    File(PathBuf),
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -396,23 +406,23 @@ enum FitTo {
 }
 
 impl FitTo {
-    fn fit_to_size(&self, size: tiny_skia::IntSize) -> Option<tiny_skia::IntSize> {
+    fn fit_to_size(&self, size: IntSize) -> Option<IntSize> {
         match *self {
             FitTo::Original => Some(size),
             FitTo::Width(w) => size.scale_to_width(w),
             FitTo::Height(h) => size.scale_to_height(h),
-            FitTo::Size(w, h) => tiny_skia::IntSize::from_wh(w, h).map(|s| size.scale_to(s)),
+            FitTo::Size(w, h) => IntSize::from_wh(w, h).map(|s| size.scale_to(s)),
             FitTo::Zoom(z) => size.scale_by(z),
         }
     }
 
-    fn fit_to_transform(&self, size: tiny_skia::IntSize) -> tiny_skia::Transform {
+    fn fit_to_transform(&self, size: IntSize) -> Transform {
         let size1 = size.to_size();
         let size2 = match self.fit_to_size(size) {
             Some(v) => v.to_size(),
-            None => return tiny_skia::Transform::default(),
+            None => return Transform::default(),
         };
-        tiny_skia::Transform::from_scale(
+        Transform::from_scale(
             size2.width() / size1.width(),
             size2.height() / size1.height(),
         )
@@ -420,10 +430,8 @@ impl FitTo {
 }
 
 fn list_fonts(args: &CliArgs) {
-    let mut fontdb = fontdb::Database::new();
+    let mut fontdb = Database::new();
     load_fonts(args, &mut fontdb);
-
-    use fontdb::Family;
     println!("serif: {}", fontdb.family_name(&Family::Serif));
     println!("sans-serif: {}", fontdb.family_name(&Family::SansSerif));
     println!("cursive: {}", fontdb.family_name(&Family::Cursive));
@@ -431,7 +439,7 @@ fn list_fonts(args: &CliArgs) {
     println!("monospace: {}", fontdb.family_name(&Family::Monospace));
 
     for face in fontdb.faces() {
-        if let fontdb::Source::File(path) = &face.source {
+        if let Source::File(path) = &face.source {
             let families: Vec<_> = face
                 .families
                 .iter()
@@ -460,9 +468,9 @@ struct Args {
     export_area_drawing: bool,
     perf: bool,
     quiet: bool,
-    usvg: usvg::Options<'static>,
+    usvg: UsvgOptions<'static>,
     fit_to: FitTo,
-    background: Option<svgtypes::Color>,
+    background: Option<SvgTypeColor>,
     raw_args: CliArgs, // TODO: find a better way
 }
 
@@ -471,13 +479,12 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
 
     if args.list_fonts {
         list_fonts(&args);
-        std::process::exit(0);
+        processIO::exit(0);
     }
 
     let (in_svg, out_png) = {
-        let in_svg = match args.input {
-            Some(ref v) => v,
-            None => return Err("input file is missing".to_string()),
+        let Some(ref in_svg) = args.input else {
+            return Err("input file is missing".to_string());
         };
 
         let svg_from = if in_svg == "-" {
@@ -517,18 +524,18 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
         eprintln!("Warning: --export-area-drawing has no effect when --export-id is set.");
     }
 
-    let export_id = args.export_id.as_ref().map(|v| v.to_string());
+    let export_id = args.export_id.clone();
 
     let mut fit_to = FitTo::Original;
-    let mut default_size = usvg::Size::from_wh(100.0, 100.0).unwrap();
+    let mut default_size = Size::from_wh(100.0, 100.0).unwrap();
     if let (Some(w), Some(h)) = (args.width, args.height) {
-        default_size = usvg::Size::from_wh(w as f32, h as f32).unwrap();
+        default_size = Size::from_wh(w as f32, h as f32).unwrap();
         fit_to = FitTo::Size(w, h);
     } else if let Some(w) = args.width {
-        default_size = usvg::Size::from_wh(w as f32, 100.0).unwrap();
+        default_size = Size::from_wh(w as f32, 100.0).unwrap();
         fit_to = FitTo::Width(w);
     } else if let Some(h) = args.height {
-        default_size = usvg::Size::from_wh(100.0, h as f32).unwrap();
+        default_size = Size::from_wh(100.0, h as f32).unwrap();
         fit_to = FitTo::Height(h);
     } else if let Some(z) = args.zoom {
         fit_to = FitTo::Zoom(z);
@@ -539,9 +546,9 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
         None => {
             if let InputFrom::File(ref input) = in_svg {
                 // Get input file absolute directory.
-                std::fs::canonicalize(input)
+                fs::canonicalize(input)
                     .ok()
-                    .and_then(|p| p.parent().map(|p| p.to_path_buf()))
+                    .and_then(|p| p.parent().map(Path::to_path_buf))
             } else {
                 None
             }
@@ -550,15 +557,15 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
 
     let style_sheet = match args.style_sheet.as_ref() {
         Some(p) => Some(
-            std::fs::read(p)
+            fs::read(p)
                 .ok()
-                .and_then(|s| std::str::from_utf8(&s).ok().map(|s| s.to_string()))
+                .and_then(|s| str::from_utf8(&s).ok().map(str::to_owned))
                 .ok_or("failed to read stylesheet".to_string())?,
         ),
         None => None,
     };
 
-    let usvg = usvg::Options {
+    let usvg = UsvgOptions {
         resources_dir,
         dpi: args.dpi as f32,
         font_family: args
@@ -571,9 +578,9 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
         text_rendering: args.text_rendering,
         image_rendering: args.image_rendering,
         default_size,
-        image_href_resolver: usvg::ImageHrefResolver::default(),
-        font_resolver: usvg::FontResolver::default(),
-        fontdb: Arc::new(fontdb::Database::new()),
+        image_href_resolver: ImageHrefResolver::default(),
+        font_resolver: FontResolver::default(),
+        fontdb: Arc::new(Database::new()),
         style_sheet,
     };
 
@@ -593,7 +600,7 @@ fn parse_args(env_args: Vec<OsString>) -> Result<Args, String> {
     })
 }
 
-fn load_fonts(args: &CliArgs, fontdb: &mut fontdb::Database) {
+fn load_fonts(args: &CliArgs, fontdb: &mut Database) {
     if !args.skip_system_fonts {
         fontdb.load_system_fonts();
     }
@@ -615,7 +622,7 @@ fn load_fonts(args: &CliArgs, fontdb: &mut fontdb::Database) {
     fontdb.set_monospace_family(args.monospace_family.as_deref().unwrap_or("Courier New"));
 }
 
-fn query_all(tree: &usvg::Tree) -> Result<(), String> {
+fn query_all(tree: &Tree) -> Result<(), String> {
     let count = query_all_impl(tree.root());
 
     if count == 0 {
@@ -625,11 +632,15 @@ fn query_all(tree: &usvg::Tree) -> Result<(), String> {
     Ok(())
 }
 
-fn query_all_impl(parent: &usvg::Group) -> usize {
+fn query_all_impl(parent: &Group) -> usize {
+    fn round_len(v: f32) -> f32 {
+        (v * 1000.0).round() / 1000.0
+    }
+
     let mut count = 0;
     for node in parent.children() {
         if node.id().is_empty() {
-            if let usvg::Node::Group(group) = node {
+            if let Node::Group(group) = node {
                 count += query_all_impl(group);
             }
             continue;
@@ -637,14 +648,9 @@ fn query_all_impl(parent: &usvg::Group) -> usize {
 
         count += 1;
 
-        fn round_len(v: f32) -> f32 {
-            (v * 1000.0).round() / 1000.0
-        }
-
         let bbox = node
             .abs_layer_bounding_box()
-            .map(|r| r.to_rect())
-            .unwrap_or(node.abs_bounding_box());
+            .map_or(node.abs_bounding_box(), |r| r.to_rect());
 
         println!(
             "{},{},{},{},{}",
@@ -655,7 +661,7 @@ fn query_all_impl(parent: &usvg::Group) -> usize {
             round_len(bbox.height())
         );
 
-        if let usvg::Node::Group(group) = node {
+        if let Node::Group(group) = node {
             count += query_all_impl(group);
         }
     }
@@ -663,13 +669,12 @@ fn query_all_impl(parent: &usvg::Group) -> usize {
     count
 }
 
-fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, String> {
-    let now = std::time::Instant::now();
+fn render_svg(args: &Args, tree: &Tree) -> Result<Pixmap, String> {
+    let now = Instant::now();
 
     let img = if let Some(ref id) = args.export_id {
-        let node = match tree.node_by_id(id) {
-            Some(node) => node,
-            None => return Err(format!("SVG doesn't have '{}' ID", id)),
+        let Some(node) = tree.node_by_id(id) else {
+            return Err(format!("SVG doesn't have '{id}' ID"));
         };
 
         let bbox = node
@@ -682,7 +687,7 @@ fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, Strin
             .ok_or_else(|| "target size is zero".to_string())?;
 
         // Unwrap is safe, because `size` is already valid.
-        let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height()).unwrap();
+        let mut pixmap = Pixmap::new(size.width(), size.height()).unwrap();
 
         if !args.export_area_page {
             if let Some(background) = args.background {
@@ -703,7 +708,7 @@ fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, Strin
                 .ok_or_else(|| "target size is zero".to_string())?;
 
             // Unwrap is safe, because `size` is already valid.
-            let mut page_pixmap = tiny_skia::Pixmap::new(size.width(), size.height()).unwrap();
+            let mut page_pixmap = Pixmap::new(size.width(), size.height()).unwrap();
 
             if let Some(background) = args.background {
                 page_pixmap.fill(svg_to_skia_color(background));
@@ -713,8 +718,8 @@ fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, Strin
                 bbox.x() as i32,
                 bbox.y() as i32,
                 pixmap.as_ref(),
-                &tiny_skia::PixmapPaint::default(),
-                tiny_skia::Transform::default(),
+                &PixmapPaint::default(),
+                Transform::default(),
                 None,
             );
             page_pixmap
@@ -728,7 +733,7 @@ fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, Strin
             .ok_or_else(|| "target size is zero".to_string())?;
 
         // Unwrap is safe, because `size` is already valid.
-        let mut pixmap = tiny_skia::Pixmap::new(size.width(), size.height()).unwrap();
+        let mut pixmap = Pixmap::new(size.width(), size.height()).unwrap();
 
         if let Some(background) = args.background {
             pixmap.fill(svg_to_skia_color(background));
@@ -747,24 +752,20 @@ fn render_svg(args: &Args, tree: &usvg::Tree) -> Result<tiny_skia::Pixmap, Strin
 
     if args.perf {
         let elapsed = now.elapsed().as_micros() as f64 / 1000.0;
-        println!("Rendering: {:.2}ms", elapsed);
+        println!("Rendering: {elapsed:.2}ms");
     }
 
     Ok(img)
 }
 
-fn trim_pixmap(
-    tree: &usvg::Tree,
-    transform: tiny_skia::Transform,
-    pixmap: &tiny_skia::Pixmap,
-) -> Option<tiny_skia::Pixmap> {
+fn trim_pixmap(tree: &Tree, transform: Transform, pixmap: &Pixmap) -> Option<Pixmap> {
     let content_area = tree.root().layer_bounding_box();
 
-    let limit = tiny_skia::IntRect::from_xywh(0, 0, pixmap.width(), pixmap.height()).unwrap();
+    let limit = IntRect::from_xywh(0, 0, pixmap.width(), pixmap.height()).unwrap();
 
     let content_area = content_area.transform(transform)?.to_int_rect();
     let content_area = fit_to_rect(content_area, limit);
-    let content_area = tiny_skia::IntRect::from_xywh(
+    let content_area = IntRect::from_xywh(
         content_area.x(),
         content_area.y(),
         content_area.width(),
@@ -775,7 +776,7 @@ fn trim_pixmap(
 }
 
 /// Fits the current rect into the specified bounds.
-fn fit_to_rect(r: tiny_skia::IntRect, bounds: tiny_skia::IntRect) -> tiny_skia::IntRect {
+fn fit_to_rect(r: IntRect, bounds: IntRect) -> IntRect {
     let mut left = r.left();
     if left < bounds.left() {
         left = bounds.left();
@@ -796,11 +797,11 @@ fn fit_to_rect(r: tiny_skia::IntRect, bounds: tiny_skia::IntRect) -> tiny_skia::
         bottom = bounds.bottom();
     }
 
-    tiny_skia::IntRect::from_ltrb(left, top, right, bottom).unwrap()
+    IntRect::from_ltrb(left, top, right, bottom).unwrap()
 }
 
-fn svg_to_skia_color(color: svgtypes::Color) -> tiny_skia::Color {
-    tiny_skia::Color::from_rgba8(color.red, color.green, color.blue, color.alpha)
+fn svg_to_skia_color(color: SvgTypeColor) -> Color {
+    Color::from_rgba8(color.red, color.green, color.blue, color.alpha)
 }
 
 /// A simple stderr logger.
@@ -813,21 +814,21 @@ impl log::Log for SimpleLogger {
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            let target = if !record.target().is_empty() {
-                record.target()
-            } else {
+            let target = if record.target().is_empty() {
                 record.module_path().unwrap_or_default()
+            } else {
+                record.target()
             };
 
             let line = record.line().unwrap_or(0);
             let args = record.args();
 
             match record.level() {
-                log::Level::Error => eprintln!("Error (in {}:{}): {}", target, line, args),
-                log::Level::Warn => eprintln!("Warning (in {}:{}): {}", target, line, args),
-                log::Level::Info => eprintln!("Info (in {}:{}): {}", target, line, args),
-                log::Level::Debug => eprintln!("Debug (in {}:{}): {}", target, line, args),
-                log::Level::Trace => eprintln!("Trace (in {}:{}): {}", target, line, args),
+                log::Level::Error => eprintln!("Error (in {target}:{line}): {args}"),
+                log::Level::Warn => eprintln!("Warning (in {target}:{line}): {args}"),
+                log::Level::Info => eprintln!("Info (in {target}:{line}): {args}"),
+                log::Level::Debug => eprintln!("Debug (in {target}:{line}): {args}"),
+                log::Level::Trace => eprintln!("Trace (in {target}:{line}): {args}"),
             }
         }
     }
