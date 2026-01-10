@@ -1,3 +1,5 @@
+use std::{path::PathBuf, str::FromStr};
+
 #[allow(unused_imports)]
 use pyo3::pymodule;
 use pyo3::{
@@ -5,21 +7,21 @@ use pyo3::{
     prelude::{Bound, PyResult, pyclass, pyfunction, pymethods},
     types::{PyAnyMethods, PyTuple},
 };
-use std::{path::PathBuf, str::FromStr};
 use tiny_skia::{Color, Pixmap, Transform};
+use usvg::{Options as UsvgOptions, Tree as UsvgTree};
 
 mod vendored;
 
 #[pyclass(unsendable)]
 struct Options {
-    inner: usvg::Options<'static>,
+    inner: UsvgOptions<'static>,
 }
 
 #[pymethods]
 impl Options {
     #[staticmethod]
     fn default() -> Self {
-        let options = usvg::Options::default();
+        let options = UsvgOptions::default();
         Options { inner: options }
     }
 
@@ -122,14 +124,14 @@ impl Options {
 
 #[pyclass(unsendable)]
 struct Tree {
-    inner: usvg::Tree,
+    inner: UsvgTree,
 }
 
 #[pymethods]
 impl Tree {
     #[staticmethod]
     fn from_str(svg: &str, opts: &Options) -> PyResult<Self> {
-        let tree = usvg::Tree::from_str(svg, &opts.inner)
+        let tree = UsvgTree::from_str(svg, &opts.inner)
             .map_err(|e| PyValueError::new_err(format!("Invalid SVG: {e}")))?;
         Ok(Tree { inner: tree })
     }
@@ -195,15 +197,19 @@ fn render<'py>(
 
 #[pymodule(name = "_resvg")]
 mod resvg_module {
-    #[pymodule_export]
-    use super::usvg_module;
+    use std::ffi::OsString;
+
+    use pyo3::pyfunction;
 
     #[pymodule_export]
     use super::render;
+    #[pymodule_export]
+    use super::usvg_module;
+    use crate::vendored::resvg_main::process;
 
-    #[pyo3::pyfunction]
-    fn _script_entrypoint(env_args: Vec<std::ffi::OsString>) -> u8 {
-        match crate::vendored::resvg_main::process(env_args) {
+    #[pyfunction]
+    fn _script_entrypoint(env_args: Vec<OsString>) -> u8 {
+        match process(env_args) {
             Ok(()) => 0,
             Err(e) => {
                 eprintln!("Error: {e}.");
@@ -217,8 +223,7 @@ mod resvg_module {
 mod usvg_module {
     // usvg submodule
     #[pymodule_export]
-    use super::Tree;
-
-    #[pymodule_export]
     use super::Options;
+    #[pymodule_export]
+    use super::Tree;
 }
