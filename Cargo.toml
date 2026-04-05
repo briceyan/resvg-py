@@ -10,7 +10,7 @@ name = "resvg"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.28.3", features = ["generate-import-lib"] }
+pyo3 = { version = "0.27.2", features = ["generate-import-lib"] }
 resvg = "0.47.0"
 tiny-skia = "0.12.0"
 usvg = "0.47.0"
