@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.4,<2.0"]
+requires = ["maturin>=1.11,<2.0"]
 build-backend = "maturin"
 
 # project metadata
@@ -12,7 +12,7 @@ urls.Download = "https://pypi.org/project/resvg/"
 urls.Homepage = "https://github.com/briceyan/resvg-py"
 urls."Issue tracker" = "https://github.com/briceyan/resvg-py/issues"
 license = "MIT"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 
 # Classifiers list: https://pypi.org/classifiers/
 classifiers = [
@@ -21,14 +21,11 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
-    "Programming Language :: Python :: 3.15",
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
@@ -47,7 +44,8 @@ resvg = "resvg.__main__:entrypoint"
 
 [dependency-groups]
 test = [
-    "pytest>=9.0",
+    "affine>=2.4,<3",
+    "pytest>=9.0,<10",
 ]
 
 [tool.maturin]
