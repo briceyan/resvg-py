@@ -1,6 +1,6 @@
 import sys
 
-from resvg._resvg import _script_entrypoint
+from ._resvg import _script_entrypoint  # pyright: ignore[reportPrivateUsage]
 
 
 def entrypoint() -> None:
