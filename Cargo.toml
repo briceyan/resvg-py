@@ -2,7 +2,7 @@
 name = "resvg"
 version = "0.1.2"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.87.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
@@ -11,11 +11,11 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pyo3 = { version = "0.27.2", features = ["generate-import-lib"] }
-resvg = "0.45.1"
-tiny-skia = "0.11.4"
-usvg = "0.45.1"
+resvg = "0.47.0"
+tiny-skia = "0.12.0"
+usvg = "0.47.0"
 
 # CLI
 log = "0.4"
 pico-args = { version = "0.5", features = ["eq-separator"] }
-svgtypes = "0.15.3"
+svgtypes = "0.16.1"

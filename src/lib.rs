@@ -1,6 +1,6 @@
 use pyo3::{exceptions::*, prelude::*, types::*};
 use std::{
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
 };
 use tiny_skia::{Color, Pixmap, Transform};
@@ -70,16 +70,43 @@ impl Options {
         Ok(())
     }
 
-    // pub resources_dir: Option<PathBuf>,
-    // pub dpi: f32,
-    // pub font_family: String,
-    // pub font_size: f32,
-    // pub languages: Vec<String>,
-    // pub shape_rendering: ShapeRendering,
-    // pub text_rendering: TextRendering,
-    // pub image_rendering: ImageRendering,
-    // pub default_size: Size,
-    // pub image_href_resolver: ImageHrefResolver,
+    fn load_system_fonts(&mut self) {
+        self.inner.fontdb_mut().load_system_fonts();
+    }
+
+    fn load_font_file(&mut self, path: &str) -> PyResult<()> {
+        self.inner
+            .fontdb_mut()
+            .load_font_file(Path::new(path))
+            .map_err(|e| PyIOError::new_err(e.to_string()))
+    }
+
+    fn load_fonts_dir(&mut self, path: &str) -> PyResult<()> {
+        let p = Path::new(path);
+        if !p.is_dir() {
+            return Err(PyFileNotFoundError::new_err(format!(
+                "no such directory: '{path}'"
+            )));
+        }
+        self.inner.fontdb_mut().load_fonts_dir(p);
+        Ok(())
+    }
+
+    fn load_font_data(&mut self, data: Vec<u8>) {
+        self.inner.fontdb_mut().load_font_data(data);
+    }
+
+    fn list_fonts(&self) -> Vec<String> {
+        let mut families: Vec<String> = self
+            .inner
+            .fontdb
+            .faces()
+            .flat_map(|face| face.families.iter().map(|(name, _lang)| name.clone()))
+            .collect();
+        families.sort();
+        families.dedup();
+        families
+    }
 }
 
 #[pyclass(unsendable)]
