@@ -25,15 +25,12 @@ from affine import Affine
 with open("a.svg", "r") as f:
     svg = f.read()
 
-db = usvg.FontDatabase.default()
-db.load_system_fonts()
-
 options = usvg.Options.default()
+options.load_system_fonts()
 options.font_family = "Space Mono"
 
-tree = usvg.Tree.from_str(svg, options, db)
-tr = Affine.identity()
-data = render(tree, tr[0:6])
+tree = usvg.Tree.from_str(svg, options)
+data = render(tree, tuple(Affine.identity())[0:6])
 
 with open("a.png", "wb") as out:
     out.write(bytes(data))
