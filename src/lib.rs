@@ -181,6 +181,83 @@ fn render<'py>(
         .map_err(|e| PyRuntimeError::new_err(e.to_string()))
 }
 
+/// Render an SVG tree to raw pre-multiplied RGBA pixels.
+///
+/// Returns a tuple of ``(rgba_bytes, width, height)`` where *rgba_bytes*
+/// contains ``width * height * 4`` pre-multiplied RGBA bytes.
+///
+/// Parameters
+/// ----------
+/// tree : Tree
+///     Parsed SVG tree obtained from ``usvg.Tree.from_str``.
+/// transform : tuple
+///     A 6-element affine transform ``(a, b, c, d, e, f)`` in row-major
+///     order (identity = ``(1, 0, 0, 0, 1, 0)``).
+/// bg_file : str, optional
+///     Path to a PNG file used as the background pixmap.
+/// bg_data : bytes, optional
+///     Raw PNG bytes used as the background pixmap.
+/// bg_size : tuple, optional
+///     ``(width, height)`` of the background pixmap when no background
+///     image is provided.
+/// bg_color : tuple, optional
+///     ``(r, g, b, a)`` fill colour for the background pixmap.
+#[pyfunction]
+#[pyo3(signature = (tree, transform, bg_file=None, bg_data=None, bg_size=None, bg_color=None))]
+fn render_rgba<'py>(
+    py: Python<'py>,
+    tree: &Tree,
+    transform: &Bound<'py, PyTuple>,
+    bg_file: Option<String>,
+    bg_data: Option<Vec<u8>>,
+    bg_size: Option<&Bound<'py, PyTuple>>,
+    bg_color: Option<&Bound<'py, PyTuple>>,
+) -> PyResult<(Py<PyBytes>, u32, u32)> {
+    let mut pixmap: Pixmap;
+    if let Some(bg_file) = bg_file {
+        if bg_data.is_some() || bg_size.is_some() || bg_color.is_some() {
+            return Err(PyValueError::new_err(
+                "bg_data, bg_size, bg_color are invalid when bg_file is set",
+            ));
+        }
+        pixmap = Pixmap::load_png(bg_file).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    } else if let Some(bg_data) = bg_data {
+        if bg_size.is_some() || bg_color.is_some() {
+            return Err(PyValueError::new_err(
+                "bg_size, bg_color are invalid when bg_data is set",
+            ));
+        }
+        pixmap =
+            Pixmap::decode_png(&bg_data).map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
+    } else {
+        let (w, h);
+        if let Some(bg_size) = bg_size {
+            let sz: (u32, u32) = bg_size.extract()?;
+            w = sz.0;
+            h = sz.1;
+        } else {
+            let sz = tree.inner.size().to_int_size();
+            w = sz.width();
+            h = sz.height();
+        }
+        pixmap =
+            Pixmap::new(w, h).ok_or_else(|| PyRuntimeError::new_err("failed to create pixmap"))?;
+        if let Some(bg_color) = bg_color {
+            let (r, g, b, a): (u8, u8, u8, u8) = bg_color.extract()?;
+            pixmap.fill(Color::from_rgba8(r, g, b, a));
+        }
+    }
+
+    let (a, b, c, d, e, f) = transform.extract()?;
+    let tr = Transform::from_row(a, d, b, e, c, f);
+    resvg::render(&tree.inner, tr, &mut pixmap.as_mut());
+
+    let w = pixmap.width();
+    let h = pixmap.height();
+    let rgba = PyBytes::new(py, pixmap.data());
+    Ok((rgba.into(), w, h))
+}
+
 #[pymodule(name = "_resvg")]
 mod resvg_module {
     #[pymodule_export]
@@ -188,6 +265,9 @@ mod resvg_module {
 
     #[pymodule_export]
     use super::render;
+
+    #[pymodule_export]
+    use super::render_rgba;
 
     #[pyo3::pyfunction]
     fn _script_entrypoint(env_args: Vec<std::ffi::OsString>) -> u8 {
