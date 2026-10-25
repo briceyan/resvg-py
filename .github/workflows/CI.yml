@@ -12,6 +12,13 @@ on:
 permissions:
   contents: read
 
+# Wheel builds install PyPy next to CPython, which leaves `python3` pointing at
+# PyPy. The linux and windows test venvs therefore name a CPython explicitly:
+# on those targets the pypy wheel is built inside a manylinux/MSVC container
+# carrying an older PyPy, so its ABI tag (pp73) never matches the runner's
+# PyPy 8.0 (pp80) and `uv pip install resvg` fails before pytest starts.
+# macOS builds its pypy wheel natively, so it keeps a real PyPy test below.
+
 jobs:
   linux:
     runs-on: ${{ matrix.platform.runner }}
@@ -80,7 +87,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          uv venv .venv
+          uv venv --python 3.12 .venv
           source .venv/bin/activate
           uv pip install resvg --no-index --find-links dist --force-reinstall
           uv pip install --group test
@@ -258,7 +265,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          uv venv .venv
+          uv venv --python 3.12 .venv
           source .venv/Scripts/activate
           uv pip install resvg --no-index --find-links dist --force-reinstall
           uv pip install --group test
@@ -300,8 +307,17 @@ jobs:
       - name: pytest
         run: |
           set -e
-          uv venv .venv
+          uv venv --python 3.12 .venv
           source .venv/bin/activate
+          uv pip install resvg --no-index --find-links dist --force-reinstall
+          uv pip install --group test
+          pytest
+
+      - name: pytest (PyPy)
+        run: |
+          set -e
+          uv venv --python pypy3.11 .venv-pypy
+          source .venv-pypy/bin/activate
           uv pip install resvg --no-index --find-links dist --force-reinstall
           uv pip install --group test
           pytest
